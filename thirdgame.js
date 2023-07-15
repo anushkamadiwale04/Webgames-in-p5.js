@@ -1,95 +1,156 @@
-var screen = 0;
-var y = -20;
-var x = 200;
+let video;
+let poseNet;
+let poses = [];
+let positions = [];
+let bubbles = [];
+let x = 0;
+let y = 0;
+var xspeed = 5;
 var speed = 2;
-var score = 0;
-var colorlist = ['white'];
+var birds;
+let colorlist = ['pink']
 
 function setup() {
-  createCanvas(600, 400);
+  createCanvas(700, 600);
   
-  // Create end game button
+  fill('pink');
+  textSize(60);
+  textStyle(ITALIC); 
+  text('To play put hands together and create circular motions!',50,650);
+  
   button = createButton("End game");
-  button.size(150, 80);
+  button.size(200,80);
   button.mousePressed(endGame);
   
   button.style("font-family", "Bodoni");
-  button.style('background-color', color(colorlist[0]));
-  button.style("font-size", "24px");
+  button.style('background-color', colorlist);
+  button.style("font-size", "24px")
   
-  button.position(220, 0);
+  button.position(260, 1000);
+  
+  
+  
+  video = createCapture(VIDEO);
+  video.size(width, height);
+
+  //Introducing poseNet
+  poseNet = ml5.poseNet(video, {flipHorizontal: false}, modelReady);
+  poseNet.on('pose', function(results) {
+    poses = results;
+    console.log(poses);
+  });
+
+  //video.hide();
+
+  //Drawing bubbles;
+  for (let i = 0; i < 500; i++) {
+    noStroke();
+    fill(100, 120, 150);
+    ellipse(x, y, 15, 15);
+    x = x + 30;
+    if (x > width) {
+      x = 0;
+      y = y + 30;
+    }
+    if (y > height) {
+      y = 0;
+    }
+
+    let b = new Bubble(x, y, 15);
+    bubbles.push(b);
+  }
+  
+  
+  birds = new Group();
+
+  for (var i = 0; i < 5; i++) {
+    var b = createSprite(
+      random(width), random(height),
+      random(10, 50), random(5, 25));
+    b.shapeColor = color(255, random(255), random(255));
+    b.friction = random(0.97, 0.99);
+    b.maxSpeed = random(1, 4);
+    b.rotateToDirection = true;
+    birds.add(b);
+  }
+  
 }
+
+function modelReady() {
+  select('#status').html('Model Loaded');
+}
+
 
 function draw() {
-  if (screen === 0) {
-    startScreen();
-  } else if (screen === 1) {
-    gameOn();
-  } else if (screen === 2) {
-    endScreen();
+  background('white');
+  //image(video, 0, 0, width, height);
+
+  //get position of right hand
+  if (poses.length > 0) {
+    //let leftWrist = poses[0].pose.keypoints[9].position;
+    let rightWrist = poses[0].pose.keypoints[10].position;
+    fill(255, 64);
+    ellipseMode(CENTER);
+
+    //fill(frameCount/2, 100,100,100);
+    noStroke();
+    for (let i = 0; i < positions.length; i++) {
+      positions[i][1]++;
+    }
+    positions.push([rightWrist.x, rightWrist.y]);
+    noFill();
+
+    //letting the bubbles do their jobs
+    for (let i = 0; i < bubbles.length; i++) {
+      //bubbles[i].move();
+      bubbles[i].show();
+      bubbles[i].hover(rightWrist.x, rightWrist.y);
+    }
+    
+    
+      for (var i = 0; i < birds.length; i++) {
+    birds[i].attractionPoint(150, rightWrist.x, rightWrist.y);
+  }
+  drawSprites();   
   }
 }
-
-function startScreen() {
-  background('pink');
-  fill(255);
-  textAlign(CENTER);
-  textSize(20);
-  text('WELCOME TO MY CATCHING GAME', width / 2, height / 2);
-  text('Click To Start', width / 2, height / 2 + 20);
-  reset();
-}
-
-function gameOn() {
-  background('pink');
-  text("Score = " + score, 50, 40);
-  ellipse(x, y, 20, 20);
-  rectMode(CENTER);
-  rect(mouseX, height - 10, 50, 30);
-  y += speed;
-  
-  if (y > height) {
-    screen = 2;
+class Bubble {
+  constructor(x, y, r) {
+    this.x = x;
+    this.y = y;
+    this.r = r;
+    this.color = colorlist;
   }
-  
-  if (y > height - 10 && x > mouseX - 20 && x < mouseX + 20) {
-    y = -20;
-    speed += 0.5;
-    score += 1;
+  //Defining how the bubbles response to the post
+  hover(pixelX, pixelY) {
+    let distance = dist(pixelX, pixelY, this.x, this.y);
+    if (distance < this.r) {
+      this.color = this.color + random(300, 300);
+      //bubbles[i].move();
+      // this.x = this.x + random(-5, 5);
+      // this.y = this.y + random(-5, 5);
+      this.x = this.x + xspeed;
+      this.y = this.y + yspeed;
+      if (x > 625 || x < 15) {
+        xspeed = -xspeed;
+      }
+      if (y > 465 || y < 15) {
+        yspeed = -yspeed;
+      }
+    }
+  } 
+  move() {
+    this.x = this.x + random(-1, 1);
+    this.y = this.y + random(-1, 1);
   }
-  
-  if (y === -20) {
-    pickRandom();
-  }
-}
-
-function pickRandom() {
-  x = random(20, width - 20);
-}
-
-function endScreen() {
-  background('maroon');
-  textAlign(CENTER);
-  textSize(20);
-  text('GAME OVER', width / 2, height / 2);
-  text("SCORE = " + score, width / 2, height / 2 + 20);
-  text('Click To Play Again', width / 2, height / 2 + 40);
-}
-
-function mousePressed() {
-  if (screen === 0) {
-    screen = 1;
-  } else if (screen === 2) {
-    screen = 0;
+  show() {
+    // stroke(255);
+    // strokeWeight(1);
+    noStroke();
+    fill(this.color, this.color, this.color * 2, 200);
+    ellipse(this.x, this.y, this.r * 2);
   }
 }
-
-function reset() {
-  score = 0;
-  speed = 2;
-  y = -20;
-}
-
-function endGame() {
-  window.open('https://editor.p5js.org/ItzMohamed/sketches/KNSHdr06dY');
+function endGame(){
+  window.open('https://editor.p5js.org/ItzMohamed/full/KNSHdr06dY');
 }
